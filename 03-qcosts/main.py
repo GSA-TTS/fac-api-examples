@@ -11,21 +11,26 @@ def get_n_report_ids(n):
     res = requests.get(url, headers={ "X-API-Key": FAC_API_KEY })
     return list(map(lambda o: o["report_id"], res.json()))
 
-# determine_cog_over : string -> string
-# Given a report ID, return whether that audit has a cognizant over oversight agency (`C` or `O`)
-def determine_cog_over(rid):
-    url = f"{FAC_API_BASE}/general?select=cognizant_agency,oversight_agency&report_id=eq.{rid}&limit=1"
+# is_questioned_costs : string -> boolean
+# Given a report ID, return whether there were questioned costs
+def is_questioned_costs(rid):
+    findings_fields=["is_modified_opinion", 
+                     "is_other_matters",
+                     "is_material_weakness",
+                     "is_significant_deficiency"
+                     ]
+    url = f"{FAC_API_BASE}/findings?select={','.join(findings_fields)}&report_id=eq.{rid}"
     res = requests.get(url, headers={ "X-API-Key": FAC_API_KEY })
-    json = res.json()[0]
-    cog = json["cognizant_agency"]
-    over = json["oversight_agency"]
-    if cog:
-        return 'C'
-    elif over:
-        return 'O'
-    else:
-        # This would be an error
-        return 'X'
+    json = res.json()
     
-for rid in get_n_report_ids(3):
-    print(rid, determine_cog_over(rid))
+    result = False
+    if json:
+        for _, val in json[0].items():
+            if val == 'Y':
+                result = True
+    return result
+     
+# We have to grab report IDs from the findings table.
+# Why? Because, for demo purposes, we want to guarantee there are some findings.
+for rid in get_n_report_ids(30):
+    print(rid, is_questioned_costs(rid))
