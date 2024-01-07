@@ -38,4 +38,4 @@ def get_py(rid):
     return bool(set_of_agencies)
     
 for rid in get_n_report_ids(50):
-    print(rid, get_py(rid))
+    print(rid, "Y" if get_py(rid) else "N")

@@ -31,4 +31,4 @@ def is_questioned_costs(rid):
     return result
      
 for rid in get_n_report_ids(30):
-    print(rid, is_questioned_costs(rid))
+    print(rid, "Y" if is_questioned_costs(rid) else "N")
