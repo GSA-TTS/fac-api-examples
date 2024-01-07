@@ -30,7 +30,5 @@ def is_questioned_costs(rid):
                 result = True
     return result
      
-# We have to grab report IDs from the findings table.
-# Why? Because, for demo purposes, we want to guarantee there are some findings.
 for rid in get_n_report_ids(30):
     print(rid, is_questioned_costs(rid))
