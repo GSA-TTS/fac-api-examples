@@ -26,10 +26,9 @@ def get_auditreporttype(rid):
     # We now have a list of values, because there could be multiple awards.
     # "U" if all TYPEREPORT_MP = U or the non-"U" values listed once
     types = set()
-    for type in json:
-        v = type["audit_report_type"]
-        if v != "":
-            types.add(v)
+    for art in json:
+        if art["audit_report_type"] != "":
+            types.add(art["audit_report_type"])
     if types == {"U"}:
         return "U"
     elif "U" not in types: 
