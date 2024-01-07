@@ -21,4 +21,4 @@ def is_cyfindings(rid):
     return json != []
 
 for rid in get_n_report_ids(5):
-    print(rid, is_cyfindings(rid))
+    print(rid, "Y" if is_cyfindings(rid) else "N")
