@@ -1,0 +1,7 @@
+services:
+  demo:
+    build: .
+    command: python /demo/main.py
+    environment:
+      API_GOV_KEY: ${API_GOV_KEY}
+      FAC_API_URL: ${FAC_API_URL:-https://api.fac.gov}
