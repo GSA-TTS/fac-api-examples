@@ -3,6 +3,8 @@ import requests
 import time
 import click
 import datetime
+from alive_progress import alive_bar
+from aln import ALN
 
 # https://stackoverflow.com/questions/17755996/how-to-make-a-list-as-the-default-value-for-a-dictionary
 from collections import defaultdict
@@ -14,7 +16,7 @@ FAC_API_BASE = os.getenv("FAC_API_URL")
 # This change hard-overrides using the local data.
 # This involves leaving out some audits, but it is faster,
 # and avoids key limit issues while testing.
-FAC_API_BASE = "http://localhost:3000"
+# FAC_API_BASE = "http://localhost:3000"
 FAC_API_KEY  = os.getenv("API_GOV_KEY")
 MAX_RESULTS=4_000_000
 STEP_SIZE=19_000
@@ -25,26 +27,26 @@ BASE_HEADERS = {
     "authorization": f"Bearer {os.getenv('CYPRESS_API_GOV_JWT')}",
     "X-API-Key": FAC_API_KEY 
 }
-class ALN:
-    def __init__(self, agency, program=None):
-        self.agency = agency
-        self.program = program
-    def __repr__(self):
-        if self.program:
-            return f"{self.agency}.{self.program}"
-        else:
-            return f"{self.agency}"
-    def __str__(self):
-        return self.__repr__()
-    def __eq__(self, other):
-        return (self.agency == other.agency 
-                and self.program == other.program)
-    def __hash__(self):
-      return hash(str(self))
-    def streq(self, string_aln):
-        parts = string_aln.split(".")
-        return (self.agency == parts[0]
-                and self.program == parts[1])
+# class ALN:
+#     def __init__(self, agency, program=None):
+#         self.agency = agency
+#         self.program = program
+#     def __repr__(self):
+#         if self.program:
+#             return f"{self.agency}.{self.program}"
+#         else:
+#             return f"{self.agency}"
+#     def __str__(self):
+#         return self.__repr__()
+#     def __eq__(self, other):
+#         return (self.agency == other.agency 
+#                 and self.program == other.program)
+#     def __hash__(self):
+#       return hash(str(self))
+#     def streq(self, string_aln):
+#         parts = string_aln.split(".")
+#         return (self.agency == parts[0]
+#                 and self.program == parts[1])
 
 def load_aln_list(fname):
     alns = set()
@@ -113,7 +115,7 @@ def calculate_for_aln(aln,
         payload["federal_award_extension"] = op("eq", aln.program)
 
     url = f"{FAC_API_BASE}/federal_awards"
-    
+
     for start in range(0, MAX_RESULTS, STEP_SIZE):
         payload["offset"] = start
         res = requests.get(url,
@@ -128,7 +130,11 @@ def calculate_for_aln(aln,
             pprint(jres)
             break
         else:
+            # Don't bother with another call if we had fewer than the max.
+            alive_limit = len(jres)
+            # with alive_bar(alive_limit) as bar:
             for r in jres:
+                # bar()
                 this_date = get_date(r["report_id"])
                 r["fac_accepted_date"] = this_date
                 if this_date < before_acceptance:
@@ -137,21 +143,56 @@ def calculate_for_aln(aln,
                     aln_dates[aln].append(this_date)
                     if r["is_direct"] == "Y":
                         aln_to_total[aln] = aln_to_total.get(aln, 0) + r["amount_expended"]
-            # Don't bother with another call if we had fewer than the max.
             if len_jres < STEP_SIZE:
                 break
+
     return (str(aln), aln_to_report_ids, aln_to_total, aln_to_count)
+
+def get_alns_by_agency_number(audit_year, agency_number):
+    # ?select=name,count()&order=name.asc
+    payload = {
+        "federal_agency_prefix": op("eq", agency_number),
+        "select": "federal_award_extension",
+        "audit_year": op("eq", audit_year),
+    }
+    url = f"{FAC_API_BASE}/federal_awards"
+    all_alns = set()
+    for start in range(0, MAX_RESULTS, STEP_SIZE):
+        payload["offset"] = start
+        res = requests.get(url,
+                        params=payload,
+                        headers=BASE_HEADERS)
+        jres = res.json()
+        len_jres = len(jres)
+        if jres == []:
+            break
+        elif "code" in jres:
+            print("ERROR: ")
+            pprint(jres)
+            break
+        else:
+            # Don't bother with another call if we had fewer than the max.
+            for r in jres:
+                all_alns.add(ALN(agency_number, r["federal_award_extension"]))
+
+    return all_alns
 
 @click.command()
 @click.argument('list_of_alns')
 @click.option('--audit-year', default="2023", help='Audit year')
 @click.option('--before-acceptance', default="2023-06-28", help="Acceptance date")
-def main(list_of_alns, audit_year, before_acceptance):
-    alns = load_aln_list(list_of_alns)
+@click.option("--distinct-alns", default=None, help="Each distinct aln under an agency number.")
+def main(list_of_alns, audit_year, before_acceptance, distinct_alns):
+    if distinct_alns:
+        alns = get_alns_by_agency_number(audit_year, distinct_alns)
+    else:
+        alns = load_aln_list(list_of_alns)
+    all_results = []
     for aln in sorted(alns, key=lambda a: f"{a.agency}.{a.program}"):
         results = calculate_for_aln(aln, 
                                     audit_year=audit_year, 
                                     before_acceptance=before_acceptance)
+        all_results.append(results)
         print("\t".join([results[0], # ALN
                         str(results[3][aln]), # aln_to_count
                         str(len(set(results[1][aln]))), # aln_to_report_ids
