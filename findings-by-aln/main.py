@@ -1,19 +1,12 @@
-from collections import namedtuple as NT
-from pprint import pprint
-from collections import defaultdict
-import os
-import requests
-import sys
 import click
-from typing import Type
-from datetime import datetime, timedelta
-from aln import ALN
+from datetime import timedelta
 from openpyxl import Workbook
-from openpyxl.utils.dataframe import dataframe_to_rows
 from peewee import *
 from types import SimpleNamespace
 from playhouse.shortcuts import model_to_dict
 from openpyxl.styles import PatternFill
+import os
+from pathlib import Path
 
 from util import (
     op,
@@ -48,7 +41,7 @@ class DailyGenerals(Model):
     date_retrieved = DateField(null=True)
     findings_count = IntegerField(null=True)
     awards_count = IntegerField(null=True)
-
+    cog_over = TextField(null=True)
     class Meta:
         database = proxy
 
@@ -59,6 +52,7 @@ class DailyFindings(Model):
     award_reference = TextField(null=True)
     reference_number = TextField(null=True)
     aln = TextField(null=True)
+    cog_over = TextField(null=True)
     federal_program_name = TextField(null=True)
     amount_expended = IntegerField(null=True)
     is_direct = BooleanField(null=True)
@@ -138,6 +132,13 @@ def get_unique_agency_numbers():
         ans.add(df.aln.split(".")[0])
     return sorted(list(ans))
 
+def get_unique_cog_overs():
+    cogs = set()
+    for df in DailyFindings.select():
+        cogs.add(df.cog_over)
+    return sorted(list(cogs))
+
+
 def adjust_columns(ws):
     for col in ws.columns:
         max_length = 0
@@ -153,6 +154,12 @@ def adjust_columns(ws):
     return ws
 
 yes_fill = PatternFill(start_color="FFD700", end_color="FFD700", fill_type = "solid")
+
+def cog_over(c, o):
+    if c:
+        return f"COG-{c}"
+    else:
+        return f"OVER-{o}"
 
 class FAC():
     # Takes a list of parameter objects.
@@ -173,6 +180,8 @@ class FAC():
                 "select": ",".join([
                     "report_id",
                     "auditee_name",
+                    "cognizant_agency",
+                    "oversight_agency"
                 ]),
             }
 
@@ -184,7 +193,8 @@ class FAC():
                 else:
                     d = {"report_id": res["report_id"],
                          "date": po.date,
-                         "auditee_name": res["auditee_name"]
+                         "auditee_name": res["auditee_name"],
+                         "cog_over": cog_over(res["cognizant_agency"], res["oversight_agency"])
                          }
                     self.results.append(DailyGenerals.create(**d))
 
@@ -208,6 +218,7 @@ class FAC():
                 # Add the auditee name into this table.
                 # Why? For human readability in the SQLite Browser.
                 res["auditee_name"] = dg.auditee_name
+                res["cog_over"] = dg.cog_over
                 logger.debug(f"Updating with {res}")
                 DailyFindings.create(**res)
             dg.date_retrieved = today()
@@ -260,6 +271,22 @@ class FAC():
                 ws.append(list(as_d.values()))
             adjust_columns(ws)
 
+        for cog_over in get_unique_cog_overs():
+            ws = wb.create_sheet(cog_over)
+            # Put headers on the sheets
+            for df in (DailyFindings
+                       .select
+                       ().where(DailyFindings.cog_over == cog_over)):
+                as_d = model_to_dict(df)
+                ws.append(list(as_d.keys()))
+                break
+            # Now the values.
+            for df in (DailyFindings
+                       .select
+                       ().where(DailyFindings.cog_over == cog_over)):
+                as_d = model_to_dict(df)
+                ws.append(list(as_d.values()))
+            adjust_columns(ws)
 
         # Hyperlink the report IDs
         for sheet in wb.worksheets:
@@ -280,8 +307,6 @@ class FAC():
                     for cell in ws[bool_column]:
                         if cell.value == "YES":
                             cell.fill = yes_fill
-
-
             except:
                 pass
 
@@ -291,26 +316,30 @@ class FAC():
             pass
         return wb
 
+def rm(filename):
+    try:
+        os.remove(filename)
+    except FileNotFoundError:
+        pass
 
 @click.command()
-@click.option('--acceptance-date', default="2024-03-02", help="Acceptance date")
-def main(acceptance_date):
+@click.argument('acceptance_date', default="2024-03-02")
+@click.option("--clean", is_flag=True, show_default=True, default=False,)
+def main(acceptance_date, clean):
     acceptance_date = string_to_datetime(acceptance_date)
-    db = SqliteDatabase(f"{acceptance_date.strftime('%Y-%m-%d')}.sqlite")
+    db_filename = f"{acceptance_date.strftime('%Y-%m-%d')}.sqlite"
+    workbook_filename = f"{acceptance_date.strftime('%Y-%m-%d')}-findings.xlsx"
+    # Possibly remove work products
+    if clean:
+        rm(db_filename)
+        rm(workbook_filename)
+    # Set up the SQLite database pro
+    db = SqliteDatabase(db_filename)
     proxy.initialize(db)
     db.create_tables([DailyGenerals, DailyFindings])
 
-    # end_date = string_to_datetime(end_date)
-    # https://stackoverflow.com/questions/7274267/print-all-day-dates-between-two-dates
-    delta = acceptance_date - acceptance_date
-    # We're going to go day-by-day.
-    # Gather all of the report_ids from that day.
-    # Gather all of the IDs with findings
-    # Then, get the awards info for those.
     qparams = []
-    for i in range(delta.days + 1):
-        date = acceptance_date + timedelta(days=i)
-        qparams.append(QParam(date.date()))
+    qparams.append(QParam(acceptance_date.date()))
     fac = FAC(qparams)
 
     fac.general()
@@ -318,7 +347,7 @@ def main(acceptance_date):
     fac.awards()
     logger.info(f"Queries used: {get_query_count()}")
     wb = fac.to_xlsx()
-    wb.save(f"{acceptance_date.strftime('%Y-%m-%d')}-findings.xlsx")
+    wb.save(workbook_filename)
 
 if __name__ in "__main__":
     main()
