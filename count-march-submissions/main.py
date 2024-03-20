@@ -40,16 +40,17 @@ def count_submissions_in_march(year):
     return hist
 
 hists = {}
-for year in range(16, 24):
-    print(f"Counting {2000+year}")
-    h = count_submissions_in_march(2000 + year) 
-    print(h)
-    ls = [key for key, val in h.items() for _ in range(val)]
-    plt.clf() 
-    obj = plt.hist(ls, bins=31)
-    ax = plt.gca()
-    ax.set_ylim([0, 2000])
-    plt.title(f'Submissions in March of {2000+year}')
-    plt.xlabel("Day")
-    plt.ylabel("Audits")
-    plt.savefig(f"submissions-in-{2000+year}.png")
+# for year in range(16, 24):
+year=23
+print(f"Counting {2000+year}")
+h = count_submissions_in_march(2000 + year) 
+print(h)
+ls = [key for key, val in h.items() for _ in range(val)]
+plt.clf() 
+obj = plt.hist(ls, bins=31)
+ax = plt.gca()
+ax.set_ylim([0, 2000])
+plt.title(f'Submissions in March of {2000+year}')
+plt.xlabel("Day")
+plt.ylabel("Audits")
+plt.savefig(f"submissions-in-{2000+year}.png")
