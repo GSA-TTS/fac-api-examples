@@ -1,3 +1,6 @@
 *.alns
 *.xlsx
 *.sqlite
+sqlite/*
+xlsx/*
+*.txt
