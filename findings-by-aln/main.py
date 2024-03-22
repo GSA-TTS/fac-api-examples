@@ -254,7 +254,7 @@ class FAC():
             adjust_columns(ws)
 
     def _cleanup_sheet(self, ws):
-        boolean_columns = ["J", "K", "L", "N", "O", "P", "Q", "R", "S", "T"]
+        boolean_columns = ["K", "L", "M", "O", "P", "Q", "R", "S", "T", "U"]
         # Trys to go through a sheet and
         # 1. Hyperlink all the report ids,
         # 2. Cleanup all the booleans.
@@ -276,6 +276,8 @@ class FAC():
                         cell.value = "YES"
                     elif cell.value == 0:
                         cell.value = "NO"
+                    else:
+                        pass
             for bool_column in boolean_columns:
                 for cell in ws[bool_column]:
                     if cell.value == "YES":
@@ -335,7 +337,6 @@ def main(acceptance_date, clean, omit_generals, omit_findings, omit_awards, repo
     # do not clean things. That's an error on the user's part.
     if clean and (all(map(lambda v: not v, [omit_generals, omit_findings, omit_awards]))):
         rm(path_based_on_ext(db_filename))
-        rm(path_based_on_ext(workbook_filename))
 
     setup_database(db_filename)
 
@@ -371,6 +372,8 @@ def main(acceptance_date, clean, omit_generals, omit_findings, omit_awards, repo
     t1 = time.time()
 
     wb = fac.to_xlsx()
+
+    rm(path_based_on_ext(workbook_filename))
     wb.save(path_based_on_ext(workbook_filename))
 
     DailyMetadata.create(
