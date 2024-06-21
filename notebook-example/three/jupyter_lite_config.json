@@ -1,6 +1,26 @@
 {
-    "LiteBuildConfig": {
-      "contents": ["notebooks"],
-      "output_dir": "dist"
+  "LiteBuildConfig": {
+    "contents": ["notebooks"],
+    "output_dir": "dist",
+    "extra_file_types": {
+      "xlsx": {
+        "name": "xlsx",
+        "extensions": [".xlsx"],
+        "mimeTypes": ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+        "fileFormat": "application"
+      },
+      "docx": {
+        "name": "docx",
+        "extensions": [".docx"],
+        "mimeTypes": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+        "fileFormat": "application"
+      },
+      "pdf": {
+        "name": "pdf",
+        "extensions": [".pdf"],
+        "mimeTypes": ["application/pdf"],
+        "fileFormat": "application"
+      }
     }
   }
+}

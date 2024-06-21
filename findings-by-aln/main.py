@@ -371,19 +371,20 @@ def main(acceptance_date, clean, omit_generals, omit_findings, omit_awards, repo
         a1 = time.time()
     t1 = time.time()
 
-    wb = fac.to_xlsx()
-
-    rm(path_based_on_ext(workbook_filename))
-    wb.save(path_based_on_ext(workbook_filename))
-
-    DailyMetadata.create(
-        date_retrieved=today(),
-        queries_used=get_query_count(),
-        time_elapsed=t1-t0,
-        time_general=g1-g0,
-        time_findings=f1-f0,
-        time_awards=a1-a0,
-    )
+    try:
+        wb = fac.to_xlsx()
+        rm(path_based_on_ext(workbook_filename))
+        wb.save(path_based_on_ext(workbook_filename))
+        DailyMetadata.create(
+            date_retrieved=today(),
+            queries_used=get_query_count(),
+            time_elapsed=t1-t0,
+            time_general=g1-g0,
+            time_findings=f1-f0,
+            time_awards=a1-a0,
+        )
+    except:
+        print(f"{acceptance_date} NO FINDINGS, NO WORKBOOK")
 
 
 if __name__ in "__main__":
