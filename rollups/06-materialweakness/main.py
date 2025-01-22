@@ -33,10 +33,6 @@ def get_mw(rid):
         # The FAC stores "Yes" and "No"
         if find[MW] == "Yes":
             is_mw = True
-        elif find[MW] == "No":
-            is_mw = False
-        else:
-            print(f"Err: MW <- {find[MW]}")
     return is_mw
     
 for rid in get_n_report_ids(20):
