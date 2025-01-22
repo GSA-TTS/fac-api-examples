@@ -3,12 +3,11 @@ import requests
 import sys
 import click
 import datetime
-from alive_progress import alive_bar
 from aln import ALN
 import pandas as pd
-import datapane as dp
 from openpyxl import Workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
+import sqlite3
 
 # https://stackoverflow.com/questions/17755996/how-to-make-a-list-as-the-default-value-for-a-dictionary
 from collections import defaultdict
@@ -57,25 +56,29 @@ def string_to_datetime(strdate):
 memoize_dates = {}
 
 
-def get_date(report_id):
+def get_date(conn, report_id):
     if memoize_dates.get(report_id, False):
         return string_to_datetime(memoize_dates.get(report_id))
-    payload = {
-        "report_id": op("eq", report_id),
-        "select": ",".join(["report_id", "fac_accepted_date"]),
-    }
-    res = requests.get(f"{FAC_API_BASE}/general", params=payload, headers=BASE_HEADERS)
-    jres = res.json()
-    if len(jres) == 0:
+    # Get the report_id and accepted date for a given report
+    # payload = {
+    #     "report_id": op("eq", report_id),
+    #     "select": ",".join(["report_id", "fac_accepted_date"]),
+    # }
+    # res = requests.get(f"{FAC_API_BASE}/general", params=payload, headers=BASE_HEADERS)
+    q = "SELECT report_id, fac_accepted_date from general where report_id = ?"
+    r = conn.execute(q, [report_id])
+    res = r.fetchone()
+    if len(res) == 0:
         print(f"NO DATE FOUND FOR {report_id}")
         sys.exit()
-    the_date = jres[0]["fac_accepted_date"]
+    # ('2018-12-GSAFAC-0000011259', '2023-12-15')
+    the_date = res["fac_accepted_date"]
     memoize_dates[report_id] = the_date
     the_date = string_to_datetime(the_date)
     return the_date
 
 
-def calculate_for_aln(aln, audit_year="2023", before_acceptance="2023-06-28"):
+def calculate_for_aln(conn, aln, audit_year="2023", before_acceptance="2023-06-28"):
     # What report IDs does this ALN appear in?
     # aln : report_id
     aln_to_report_ids = defaultdict(list)
@@ -89,54 +92,59 @@ def calculate_for_aln(aln, audit_year="2023", before_acceptance="2023-06-28"):
     before_acceptance = string_to_datetime(before_acceptance)
 
     # We begin by finding this ALN in the federal_awards table
-    payload = {
-        "limit": STEP_SIZE - 1,
-        "federal_agency_prefix": op("eq", aln.agency),
-        "audit_year": op("eq", audit_year),
-        "is_direct": op("eq", "Y"),
-        "select": ",".join(
-            [
-                "report_id",
-                "amount_expended",
-                "is_direct",
-                "federal_agency_prefix",
-                "federal_award_extension",
-            ]
-        ),
-    }
-    # If they included a program, and not just an agency number...
-    if aln.program:
-        payload["federal_award_extension"] = op("eq", aln.program)
+    # payload = {
+    #     "limit": STEP_SIZE - 1,
+    #     "federal_agency_prefix": op("eq", aln.agency),
+    #     "audit_year": op("eq", audit_year),
+    #     "is_direct": op("eq", "Y"),
+    #     "select": ",".join(
+    #         [
+    #             "report_id",
+    #             "amount_expended",
+    #             "is_direct",
+    #             "federal_agency_prefix",
+    #             "federal_award_extension",
+    #         ]
+    #     ),
+    # }
+    # # If they included a program, and not just an agency number...
+    # if aln.program:
+    #     payload["federal_award_extension"] = op("eq", aln.program)
 
-    url = f"{FAC_API_BASE}/federal_awards"
-
-    for start in range(0, MAX_RESULTS, STEP_SIZE):
-        print(f"calculate_for_aln start {start}")
-        payload["offset"] = start
-        res = requests.get(url, params=payload, headers=BASE_HEADERS)
-        jres = res.json()
-        len_jres = len(jres)
-        if jres == []:
-            break
-        elif "code" in jres:
-            print("ERROR: ")
-            pprint(jres)
-            break
-        else:
-            for r in jres:
-                this_date = get_date(r["report_id"])
-                r["fac_accepted_date"] = this_date
-                if this_date < before_acceptance:
-                    aln_to_report_ids[aln].append(r["report_id"])
-                    aln_to_count[aln] = aln_to_count.get(aln, 0) + 1
-                    aln_dates[aln].append(this_date)
-                    if r["is_direct"] == "Y":
-                        aln_to_total[aln] = (
-                            aln_to_total.get(aln, 0) + r["amount_expended"]
-                        )
-            if len_jres < STEP_SIZE:
-                print("len_jres < STEP_SIZE")
-                break
+    # url = f"{FAC_API_BASE}/federal_awards"
+    q = """
+    SELECT 
+        f.report_id, 
+        f.amount_expended, 
+        f.is_direct, 
+        f.federal_agency_prefix, 
+        f.federal_award_extension,
+        g.fac_accepted_date
+    FROM federal_awards f, general g
+    WHERE 
+        f.federal_agency_prefix = ?
+        AND
+        f.audit_year = ?
+        AND
+        f.is_direct = ?
+        AND
+        f.report_id = g.report_id
+"""
+    res = conn.execute(q, [aln.agency, audit_year, "Y"])
+    all = res.fetchall()
+    print(f"processing awards: {len(all)}")
+    for r in all:
+        # print(f"calculate_for_aln {r}")
+        # this_date = get_date(conn, r["report_id"])
+        # r["fac_accepted_date"] = this_date
+        r["fac_accepted_date"] = string_to_datetime(r["fac_accepted_date"])
+        # print(f"with date {r}")
+        if r["fac_accepted_date"] < before_acceptance:
+            aln_to_report_ids[aln].append(r["report_id"])
+            aln_to_count[aln] = aln_to_count.get(aln, 0) + 1
+            aln_dates[aln].append(r["fac_accepted_date"])
+            if r["is_direct"] == "Y":
+                aln_to_total[aln] = aln_to_total.get(aln, 0) + int(r["amount_expended"])
 
     # return (str(aln), aln_to_report_ids, aln_to_total, aln_to_count)
     return Results(
@@ -148,29 +156,20 @@ def calculate_for_aln(aln, audit_year="2023", before_acceptance="2023-06-28"):
     )
 
 
-def get_alns_by_agency_number(audit_year, agency_number):
-    payload = {
-        "federal_agency_prefix": op("eq", agency_number),
-        "select": "federal_award_extension",
-        "audit_year": op("eq", audit_year),
-    }
-    url = f"{FAC_API_BASE}/federal_awards"
+def get_alns_by_agency_number(conn, audit_year, agency_number):
+    # payload = {
+    #     "federal_agency_prefix": op("eq", agency_number),
+    #     "select": "federal_award_extension",
+    #     "audit_year": op("eq", audit_year),
+    # }
+    # url = f"{FAC_API_BASE}/federal_awards"
+    q = "SELECT federal_award_extension from federal_awards where audit_year = ? and federal_agency_prefix = ?"
+    res = conn.execute(q, [audit_year, agency_number])
+    all = res.fetchall()
     all_alns = set()
-    for start in range(0, MAX_RESULTS, STEP_SIZE):
-        payload["offset"] = start
-        res = requests.get(url, params=payload, headers=BASE_HEADERS)
-        jres = res.json()
-        if jres == []:
-            break
-        elif "code" in jres:
-            print("ERROR: ")
-            pprint(jres)
-            break
-        else:
-            # Don't bother with another call if we had fewer than the max.
-            for r in jres:
-                all_alns.add(ALN(agency_number, r["federal_award_extension"]))
-
+    for res in all:
+        print(f"alns by agency number {res}")
+        all_alns.add(ALN(agency_number, res["federal_award_extension"]))
     return all_alns
 
 
@@ -284,6 +283,13 @@ class ResultSummary:
         wb.save(f"agency-{self.agency_number}-distribution.xlsx")
 
 
+def row_to_dict(cursor: sqlite3.Cursor, row: sqlite3.Row) -> dict:
+    data = {}
+    for idx, col in enumerate(cursor.description):
+        data[col[0]] = row[idx]
+    return data
+
+
 @click.command()
 @click.argument("list_of_alns")
 @click.option("--audit-years", default="2023", help="Audit year")
@@ -295,17 +301,19 @@ class ResultSummary:
 )
 def main(list_of_alns, audit_years, before_acceptance, distinct_alns_for_agency):
     RS = ResultSummary(distinct_alns_for_agency)
+    conn = sqlite3.connect("fac.sqlite")
+    conn.row_factory = row_to_dict
 
     for audit_year in list(map(lambda y: int(y), audit_years.split(","))):
         print(f"running audit year {audit_year}")
         if distinct_alns_for_agency:
-            alns = get_alns_by_agency_number(audit_year, distinct_alns_for_agency)
+            alns = get_alns_by_agency_number(conn, audit_year, distinct_alns_for_agency)
         else:
             alns = load_aln_list(list_of_alns)
         for aln in sorted(alns, key=lambda a: f"{a.agency}.{a.program}"):
             print(f"running aln: {aln}")
             result = calculate_for_aln(
-                aln, audit_year=audit_year, before_acceptance=before_acceptance
+                conn, aln, audit_year=audit_year, before_acceptance=before_acceptance
             )
             RS.add_result(audit_year, result)
 
