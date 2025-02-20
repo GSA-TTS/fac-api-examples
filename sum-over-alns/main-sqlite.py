@@ -112,7 +112,7 @@ def calculate_for_aln(conn, aln, audit_year="2023", before_acceptance="2023-06-2
     #     payload["federal_award_extension"] = op("eq", aln.program)
 
     # url = f"{FAC_API_BASE}/federal_awards"
-    q = """
+    q_agency = """
     SELECT 
         f.report_id, 
         f.amount_expended, 
@@ -130,7 +130,32 @@ def calculate_for_aln(conn, aln, audit_year="2023", before_acceptance="2023-06-2
         AND
         f.report_id = g.report_id
 """
-    res = conn.execute(q, [aln.agency, audit_year, "Y"])
+
+    q_program = """
+    SELECT 
+        f.report_id, 
+        f.amount_expended, 
+        f.is_direct, 
+        f.federal_agency_prefix, 
+        f.federal_award_extension,
+        g.fac_accepted_date
+    FROM federal_awards f, general g
+    WHERE 
+        f.federal_agency_prefix = ?
+        AND 
+        f.federal_award_extension = ?
+        AND
+        f.audit_year = ?
+        AND
+        f.is_direct = ?
+        AND
+        f.report_id = g.report_id
+"""
+
+    if aln.agency and aln.program:
+        res = conn.execute(q_program, [aln.agency, aln.program, audit_year, "Y"])
+    else:
+        res = conn.execute(q_agency, [aln.agency, audit_year, "Y"])
     all = res.fetchall()
     print(f"processing awards: {len(all)}")
     for r in all:
