@@ -11,15 +11,15 @@ FAC_PRODUCTION = "https://api.fac.gov"
 Param = NT("Param", "key,op,value")
 Header = NT("Header", "key,value")
 
+
 class Struct:
     def __init__(self, **entries):
         self.__dict__.update(entries)
 
-class FAC():
 
-    def __init__(self,
-                 base=FAC_PRODUCTION,
-                 endpoint="general"):
+class FAC:
+
+    def __init__(self, base=FAC_PRODUCTION, endpoint="general"):
         self._base = base
         self._endpoint = endpoint
         self._params = dict()
@@ -39,10 +39,14 @@ class FAC():
     def endpoint(self, ep):
         self._endpoint = ep
 
-    def param(self, key, value):
-        if key in ["limit", "offset"]:
-            print("WARNING: `limit` and `offset` will be overridden; use headers instead.")
-            print("See https://docs.postgrest.org/en/v12/references/api/pagination_count.html#limits-and-pagination")
+    def param(self, key, value, noisy=True):
+        if key in ["limit", "offset"] and noisy:
+            print(
+                "WARNING: `limit` and `offset` will be overridden; use headers instead."
+            )
+            print(
+                "See https://docs.postgrest.org/en/v12/references/api/pagination_count.html#limits-and-pagination"
+            )
         self._params[key] = value
         return self
 
@@ -55,13 +59,14 @@ class FAC():
         return self
 
     def get_url(self):
-        p = Request('GET',
-                    f"{self._base}/{self._endpoint}",
-                    params=self._params,
-                    headers=self._headers,
-                    ).prepare()
+        p = Request(
+            "GET",
+            f"{self._base}/{self._endpoint}",
+            params=self._params,
+            headers=self._headers,
+        ).prepare()
         return p.url
-    
+
     def api_key(self, key):
         self.header("x-api-key", key)
 
@@ -72,13 +77,15 @@ class FAC():
         offset = 0
         inc = 20000
         while fetching:
-            self.param("offset", offset)
-            self.param("limit", ((offset+inc)-1))
-            
+            self.param("offset", offset, noisy=False)
+            self.param("limit", ((offset + inc) - 1), noisy=False)
+
             t0 = time()
-            res = get(f"{self._base}/{self._endpoint}",
-                      params=self._params,
-                      headers=self._headers)
+            res = get(
+                f"{self._base}/{self._endpoint}",
+                params=self._params,
+                headers=self._headers,
+            )
             t1 = time()
             if "elapsed_time" in self._metadata:
                 self._metadata["elapsed_time"].append(t1 - t0)
@@ -96,22 +103,24 @@ class FAC():
             # Look to see if things died.
             if not resj:
                 fetching = False
-                self.error = {"code": "NON_JSON_RESPONSE", 
-                              "message": "Received no JSON in the response."
-                              }
+                self.error = {
+                    "code": "NON_JSON_RESPONSE",
+                    "message": "Received no JSON in the response.",
+                }
                 return self
             elif len(resj) == 0:
                 fetching = False
-                self.error = {"code": "ZERO_LENGTH_RESPONSE",
-                              "message": "No values in the JSON response."
-                              }
+                self.error = {
+                    "code": "ZERO_LENGTH_RESPONSE",
+                    "message": "No values in the JSON response.",
+                }
                 return self
             elif "error" in resj:
                 fetching = False
                 self.error = resj["error"]
                 return self
             # Don't do an extra query if we're done.
-            elif len(resj) < inc-1:
+            elif len(resj) < inc - 1:
                 results += resj
                 self._results += results
                 self.error = None
@@ -122,20 +131,20 @@ class FAC():
                 offset += inc
         # Shouldn't get here
         return self
-        
+
     def error_status(self):
         return self.error
 
     def results(self):
         return self._results
-    
+
     def structs(self):
         if len(self._structs) > 0:
             return self._structs
         else:
-            self._structs = list(map(lambda s: Struct(**s), self._results)) 
+            self._structs = list(map(lambda s: Struct(**s), self._results))
             return self._structs
-    
+
     def metadata(self):
         if "elapsed_time" in self._metadata:
             total_time = sum(self._metadata["elapsed_time"])
@@ -150,7 +159,7 @@ class FAC():
             return new
         else:
             return {}
-        
+
     def append_metadata(self, other_client):
         us = self._metadata
         them = other_client._metadata
