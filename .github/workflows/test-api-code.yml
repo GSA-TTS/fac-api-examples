@@ -29,8 +29,8 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install dep
-        run: pip install alive-progress
+      - name: Install deps
+        run: pip install alive-progress requests
 
       - name: Create .env
         run: touch .env
