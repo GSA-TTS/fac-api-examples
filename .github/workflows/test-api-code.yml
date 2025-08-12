@@ -1,0 +1,45 @@
+---
+name: Test API Calls
+on:
+#   workflow_call:
+#     inputs:
+#       environment:
+#         required: true
+#         type: string
+#   workflow_dispatch:
+    push:
+        branches:
+            [api-tests]
+
+jobs:
+  accuracy-test:
+    runs-on: ubuntu-22.04
+    #environment: ${{ inputs.environment }}
+    env:
+      #ENV: TESTING
+      API_GOV_KEY: ${{ secrets.API_GOV_KEY }}
+      FAC_API_URL: ${{ secrets.FAC_API_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Create .env
+        working-directory: ./backend
+        run: touch .env
+
+      - name: Run ALN
+        working-directory: ./accuracy_tests/aln/
+        run: python aln.py
+
+      - name: Run Base
+        working-directory: ./accuracy_tests/base/
+        run: python main.py
+
+
+
