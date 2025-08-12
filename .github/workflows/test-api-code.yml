@@ -18,7 +18,7 @@ jobs:
     env:
       #ENV: TESTING
       API_GOV_KEY: ${{ secrets.API_GOV_KEY }}
-      FAC_API_URL: ${{ secrets.FAC_API_URL }}
+      FAC_API_BASE: ${{ secrets.FAC_API_URL }}
 
     steps:
       - name: Checkout
