@@ -30,7 +30,6 @@ jobs:
           python-version: '3.12'
 
       - name: Create .env
-        working-directory: ./backend
         run: touch .env
 
       - name: Run ALN
