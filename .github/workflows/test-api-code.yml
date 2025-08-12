@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        test: ["accuracy_tests", "count-march-submissions", "download-all", "dupicate-ueis", "fetch-all-to-sqlite", "findings-by-aln", "pagination", "submission-in-zips", "sum-over-alns", "test-passthrough"]
+        test: ["accuracy_tests", "count-march-submissions", "download-all", "duplicate-ueis", "fetch-all-to-sqlite", "findings-by-aln", "pagination", "submission-in-zips", "sum-over-alns", "test-passthrough"]
     #environment: ${{ inputs.environment }}
     env:
       #ENV: TESTING
@@ -35,7 +35,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install deps
-        run: pip install alive-progress requests matplotlib click
+        run: pip install alive-progress requests matplotlib click peewee pandas
 
       - name: Create .env
         run: touch .env
