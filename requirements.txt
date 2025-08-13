@@ -1,0 +1,6 @@
+alive-progress 
+click 
+matplotlib 
+pandas
+peewee 
+requests 

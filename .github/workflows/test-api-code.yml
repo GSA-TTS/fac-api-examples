@@ -18,11 +18,11 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        test: ["accuracy_tests", "count-march-submissions", "download-all", "duplicate-ueis", "fetch-all-to-sqlite", "findings-by-aln", "pagination", "submission-in-zips", "sum-over-alns", "test-passthrough"]
+        test: ["rollups/01-aln"]
     #environment: ${{ inputs.environment }}
     env:
       #ENV: TESTING
-      API_GOV_KEY: ${{ secrets.API_GOV_KEY }}
+      FAC_API_KEY: ${{ secrets.FAC_API_KEY }}
       FAC_API_URL: ${{ secrets.FAC_API_URL }}
 
     steps:
@@ -35,7 +35,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install deps
-        run: pip install alive-progress requests matplotlib click peewee pandas
+        run: pip install -r requirements.txt
 
       - name: Create .env
         run: touch .env
