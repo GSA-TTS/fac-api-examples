@@ -1,69 +1,56 @@
 import requests
 import os
 from collections import defaultdict
-from math import floor
-from pprint import pprint
+from dotenv import load_dotenv
+
+load_dotenv()
+
+BASE_URL = os.getenv("FAC_API_URL", "https://api.fac.gov")
+API_KEY = os.getenv("FAC_API_KEY")
+AUDIT_YEAR = os.getenv("AUDIT_YEAR")
 
 continuing = True
 
 all_results = []
 start = 0
 limit = 20000
+
+print(f"Checking duplicate UEIs for audit year {AUDIT_YEAR}")
+print(f"Url: {BASE_URL}")
+
 while continuing:
-    req = requests.get("https://api.fac.gov/general",
-                    params = {
-                        "select": "auditee_uei,audit_year",
-                        "audit_year": "eq.2023",
-                        "offset": start
-                    },
-                    headers = {
-                        "x-api-key": os.getenv("API_GOV_KEY")
-                    }
-                    )
-    if req.json() == []:
+    req = requests.get(
+        f"{BASE_URL}/general",
+        params={
+            "select": "auditee_uei,audit_year",
+            "audit_year": f"eq.{AUDIT_YEAR}",
+            "offset": start,
+            "limit": limit,
+        },
+        headers={"x-api-key": API_KEY},
+    )
+    if req.status_code != 200:
+        print(f"Request failed with status code: {req.status_code}")
+        print(f"{req.text[:500]}")
+        continuing = False
+    elif req.json() == []:
         continuing = False
     else:
         all_results = all_results + req.json()
         start += limit
-    
+
 dups = defaultdict(int)
 
-print(f"Found: {len(req.json())}")
 for rec in all_results:
-    key = rec["auditee_uei"] + "-" + rec["audit_year"]
+    key = rec["auditee_uei"]
     dups[key] += 1
 
-# This produces something like:
-#
-# ABC-2023: 3
-# DEF-2023: 1
-# XYZ-2023: 9
-# ...
-
-resub = defaultdict(int) 
-for k, v in dups.items():
-    resub[v] += 1
-
-# This now counts how many of each count:
-
-# 1: 28323
-# 2: 260
-# 3: 41
-# 4: 1
-# 5: 1
-# 9: 2
-
-for k, v in dups.items():
-    if v > 2:
-        print(f"{k}: {v}")
-
-
-for k, v in sorted(resub.items(), key=lambda kv: kv[0]):
-    print(f"{k} {'re' if k > 1 else ''}submission{'s' if k > 1 else ''}: {v}")
-
 resub_count = 0
-for k, v in dups.items():
-    if v > 1:
+for uei, n in dups.items():
+    if n > 1:
+        print(f"UEI: {uei}, Submissions: {n}")
         resub_count += 1
 
-print(f"total: {len(dups)} resub: {resub_count}")
+
+print(f"Unique UEIs (entities that submitted): {len(dups)}")
+print(f"UEIs with multiple submissions:        {resub_count}")
