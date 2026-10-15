@@ -27,7 +27,9 @@ FAC_API_URL=https://api.fac.gov
 ### With Python
 
 ```bash
-pip install requests python-dotenv
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 python main.py
 ```
 

@@ -1,0 +1,6 @@
+click
+pandas
+requests
+datetime
+dotenv
+ijson
