@@ -6,8 +6,6 @@ from time import time
 from datetime import timedelta
 from math import floor
 
-FAC_PRODUCTION = "https://api.fac.gov"
-
 Param = NT("Param", "key,op,value")
 Header = NT("Header", "key,value")
 
@@ -19,9 +17,9 @@ class Struct:
 
 class FAC:
 
-    def __init__(self, base=FAC_PRODUCTION, endpoint="general"):
+    def __init__(self, base):
         self._base = base
-        self._endpoint = endpoint
+        self._endpoint = None
         self._params = dict()
         self._metadata = dict()
         self.error = None
@@ -86,6 +84,16 @@ class FAC:
                 params=self._params,
                 headers=self._headers,
             )
+
+            if res.status_code != 200:
+                fetching = False
+                self.error = {
+                    "code": "HTTP_ERROR",
+                    "message": res.text,
+                    "status": res.status_code
+                }
+                return self
+
             t1 = time()
             if "elapsed_time" in self._metadata:
                 self._metadata["elapsed_time"].append(t1 - t0)

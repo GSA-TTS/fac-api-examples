@@ -1,5 +1,5 @@
 services:
-  duplicate-ueis:
+  task:
     build: .
     command: python main.py
     env_file: .env
